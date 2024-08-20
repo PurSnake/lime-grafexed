@@ -423,7 +423,11 @@ class MacPlatform extends PlatformTarget
 					// TODO: Support single binary
 					commands.push(["-Dmac", "-DHXCPP_CLANG", "-DHXCPP_M64", "-Dhashlink"]);
 				}
-				else if (!targetFlags.exists("32"))
+				else if (targetFlags.exists("arm64"))
+				{
+					commands.push(["-Dmac", "-DHXCPP_CLANG", "-DHXCPP_ARM64"]);
+				}
+				else if (!targetFlags.exists("32") && !targetFlags.exists("x86_32"))
 				{
 					commands.push(["-Dmac", "-DHXCPP_CLANG", "-DHXCPP_M64"]);
 				}
@@ -434,7 +438,19 @@ class MacPlatform extends PlatformTarget
 			case X86:
 				commands.push(["-Dmac", "-DHXCPP_CLANG", "-DHXCPP_M32"]);
 			case ARM64:
-				commands.push(["-Dmac", "-DHXCPP_CLANG", "-DHXCPP_ARM64"]);
+				if (targetFlags.exists("hl"))
+				{
+					// hashlink doesn't support arm64 macs yet
+					commands.push(["-Dmac", "-DHXCPP_CLANG", "-DHXCPP_ARCH=x86_64", "-Dhashlink"]);
+				}
+				else if (targetFlags.exists("64") || targetFlags.exists("x86_64"))
+				{
+					commands.push(["-Dmac", "-DHXCPP_CLANG", "-DHXCPP_ARCH=x86_64"]);
+				}
+				else
+				{
+					commands.push(["-Dmac", "-DHXCPP_CLANG", "-DHXCPP_ARM64"]);
+				}
 			default:
 		}
 
@@ -584,7 +600,12 @@ class MacPlatform extends PlatformTarget
 
 	private inline function get_dirSuffix():String
 	{
-		return targetArchitecture == X64 ? "64" : "";
+		if (targetFlags.exists("hl"))
+		{
+			// hashlink doesn't support arm64 macs yet
+			return "64";
+		}
+		return targetArchitecture == X64 ? "64" : targetArchitecture == ARM64 ? "Arm64" : "";
 	}
 
 	/**
