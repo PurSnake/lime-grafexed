@@ -3412,7 +3412,7 @@ namespace lime {
 	value lime_alc_open_device (HxString devicename) {
 
 		ALCdevice* alcDevice = alcOpenDevice (devicename.__s);
-		atexit (lime_al_atexit);
+		//atexit (lime_al_atexit);
 
 		value ptr = CFFIPointer (alcDevice, gc_alc_object);
 		alcObjects[alcDevice] = ptr;
@@ -3424,7 +3424,7 @@ namespace lime {
 	HL_PRIM HL_CFFIPointer* HL_NAME(hl_alc_open_device) (hl_vstring* devicename) {
 
 		ALCdevice* alcDevice = alcOpenDevice (devicename ? (char*)hl_to_utf8 ((const uchar*)devicename->bytes) : 0);
-		atexit (lime_al_atexit);
+		//atexit (lime_al_atexit);
 
 		HL_CFFIPointer* ptr = HLCFFIPointer (alcDevice, (hl_finalizer)hl_gc_alc_object);
 		alcObjects[alcDevice] = ptr;

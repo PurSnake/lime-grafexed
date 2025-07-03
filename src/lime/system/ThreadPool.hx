@@ -105,6 +105,17 @@ class ThreadPool extends WorkOutput
 	}
 
 	/**
+		Indicates that no further events will be dispatched.
+	**/
+	public var canceled(default, null):Bool = false;
+
+	/**
+		Indicates that the latest job finished successfully, and no other job
+		has been started/is ongoing.
+	**/
+	public var completed(default, null):Bool = false;
+
+	/**
 		The number of live threads in this pool, including both active and idle
 		threads. Does not count threads that have been instructed to shut down.
 
@@ -304,6 +315,9 @@ class ThreadPool extends WorkOutput
 
 		__jobComplete.value = false;
 		activeJob = null;
+
+		completed = false;
+		canceled = true;
 	}
 
 	/**
@@ -372,6 +386,9 @@ class ThreadPool extends WorkOutput
 
 		var job:JobData = new JobData(doWork, state);
 		__jobQueue.push(job);
+
+		completed = false;
+		canceled = false;
 
 		if (!Application.current.onUpdate.has(__update))
 		{
@@ -605,14 +622,14 @@ class ThreadPool extends WorkOutput
 						}
 					}
 					#end
-
+					completed = threadEvent.event == COMPLETE && activeJobs == 0 && __jobQueue.length == 0;
 				default:
 			}
 
 			activeJob = null;
 		}
 
-		if (activeJobs == 0 && __jobQueue.length == 0)
+		if (completed)
 		{
 			Application.current.onUpdate.remove(__update);
 		}
@@ -664,7 +681,7 @@ class ThreadPool extends WorkOutput
 	}
 }
 
-@:access(lime.system.ThreadPool)
+@:access(lime.system.ThreadPool) @:forward(canceled)
 private abstract PseudoEvent(ThreadPool) from ThreadPool
 {
 	@:noCompletion @:dox(hide) public var __listeners(get, never):Array<Dynamic>;
