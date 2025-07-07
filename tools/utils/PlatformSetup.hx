@@ -599,6 +599,7 @@ class PlatformSetup
 		if (System.hostPlatform != MAC)
 		{
 			getDefineValue("JAVA_HOME", "Path to Java JDK");
+			getDefineValue("SCRCPY_PATH", "Path to SCRCPY");
 		}
 
 		if (ConfigHelper.getConfigValue("ANDROID_SETUP") == null)

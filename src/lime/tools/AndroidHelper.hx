@@ -1,5 +1,6 @@
 package lime.tools;
 
+import sys.net.Host;
 import hxp.*;
 import sys.io.File;
 import sys.FileSystem;
@@ -10,6 +11,8 @@ class AndroidHelper
 	private static var adbPath:String;
 	private static var emulatorName:String;
 	private static var emulatorPath:String;
+	private static var scrcpyName:String;
+	private static var scrcpyPath:String;
 
 	public static function build(project:HXProject, projectDirectory:String):Void
 	{
@@ -159,14 +162,17 @@ class AndroidHelper
 	{
 		adbPath = project.environment.get("ANDROID_SDK") + "/platform-tools/";
 		emulatorPath = project.environment.get("ANDROID_SDK") + "/emulator/";
+		scrcpyPath = project.environment.get("SCRCPY_PATH") + "/";
 
 		adbName = "adb";
 		emulatorName = "emulator";
+		scrcpyName = "scrcpy";
 
 		if (System.hostPlatform == WINDOWS)
 		{
 			adbName += ".exe";
 			emulatorName += ".exe";
+			scrcpyName += ".exe";
 		}
 
 		if (!FileSystem.exists(adbPath + adbName))
@@ -185,6 +191,7 @@ class AndroidHelper
 		{
 			adbName = "./" + adbName;
 			emulatorName = "./" + emulatorName;
+			scrcpyName = "./" + scrcpyName;
 		}
 
 		if (project.environment.exists("JAVA_HOME"))
@@ -284,6 +291,24 @@ class AndroidHelper
 		}
 
 		System.runCommand(adbPath, adbName, args);
+
+		if (FileSystem.exists(scrcpyPath + scrcpyName))
+		{
+			Log.info("Staring SCRCPY");
+
+			final scrcpyArgs:Array<String> = ["-K", "--video-bit-rate 24M", "--audio-bit-rate 256K"];
+
+			if (System.hostPlatform == WINDOWS)
+			{
+				scrcpyName = "start cmd /C " + scrcpyName;
+			}
+
+			System.runCommand(scrcpyPath, scrcpyName);
+		}
+		else
+		{
+			Log.warn("Couldn't start SCRCPY");
+		}
 
 		return deviceID;
 	}
