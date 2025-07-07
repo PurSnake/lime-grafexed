@@ -1,6 +1,5 @@
 package lime.tools;
 
-import sys.net.Host;
 import hxp.*;
 import sys.io.File;
 import sys.FileSystem;
