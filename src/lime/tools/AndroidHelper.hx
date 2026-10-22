@@ -422,6 +422,7 @@ class AndroidHelper
 
 		System.runCommand(adbPath, adbName, args.concat([
 			"start",
+			"-W",
 			"-a",
 			"android.intent.action.MAIN",
 			"-c",
