@@ -1375,6 +1375,40 @@ namespace lime
 			return alloc_null();
 		}
 
+#if defined(IPHONE)
+		AVAudioSession *pAudioSession = [AVAudioSession sharedInstance];
+
+		NSError *pError = nil;
+
+		if (@available(iOS 17.0, *))
+		{
+			if (![pAudioSession setPrefersInterruptionOnRouteDisconnect:false error:&pError])
+			{
+				ma_log_post_nserror__coreaudio(ma_engine_get_log(engine), MA_LOG_LEVEL_WARNING, "AVAudioSession setPrefersInterruptionOnRouteDisconnect(false)", pError);
+				ma_log_post_audio_session__coreaudio(ma_engine_get_log(engine));
+			}
+			else
+			{
+				ma_log_postf(ma_engine_get_log(engine), MA_LOG_LEVEL_DEBUG, "[Core Audio] AVAudioSession setPrefersInterruptionOnRouteDisconnect(false) succeeded.");
+			}
+		}
+
+		if (@available(iOS 14.5, *))
+		{
+			pError = nil;
+
+			if (![pAudioSession setPrefersNoInterruptionsFromSystemAlerts:true error:&pError])
+			{
+				ma_log_post_nserror__coreaudio(ma_engine_get_log(engine), MA_LOG_LEVEL_WARNING, "AVAudioSession setPrefersNoInterruptionsFromSystemAlerts(true)", pError);
+				ma_log_post_audio_session__coreaudio(ma_engine_get_log(engine));
+			}
+			else
+			{
+				ma_log_postf(ma_engine_get_log(engine), MA_LOG_LEVEL_DEBUG, "[Core Audio] AVAudioSession setPrefersNoInterruptionsFromSystemAlerts(true) succeeded.");
+			}
+		}
+#endif
+
 		return CFFIPointer(engine, gc_ma_engine);
 	}
 
