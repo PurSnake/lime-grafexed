@@ -99,7 +99,6 @@ class AudioBuffer
 		if (__srcHowl != null)
 		{
 			__srcHowl.unload();
-			__srcHowl = null;
 		}
 		#elseif (lime_cffi && lime_miniaudio && !macro)
 		if (__srcMADecoder != null)
