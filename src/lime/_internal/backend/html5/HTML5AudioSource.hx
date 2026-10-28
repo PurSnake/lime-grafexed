@@ -2,6 +2,9 @@ package lime._internal.backend.html5;
 
 import lime.media.AudioSource;
 import lime.media.howlerjs.Howl;
+#if lime_howlerjs
+import lime.media.howlerjs.Howler;
+#end
 
 @:access(lime.media.AudioBuffer)
 class HTML5AudioSource
@@ -35,129 +38,238 @@ class HTML5AudioSource
 
 	public function play():Void
 	{
-		if (parent.buffer.__srcHowl != null)
+		final buffer = parent.buffer;
+		if (buffer == null || buffer.__srcHowl == null)
 		{
-			if (handle != -1)
-			{
-				parent.buffer.__srcHowl.play(handle);
-			}
-			else
-			{
-				if (parent.buffer.__srcHowlerDefaultSprite != null)
-				{
-					handle = parent.buffer.__srcHowl.play(parent.buffer.__srcHowlerDefaultSprite);
-				}
-				else
-				{
-					handle = parent.buffer.__srcHowl.play();
-				}
-
-				parent.buffer.__srcHowl.once("end", howl_onEnd, handle);
-
-				parent.buffer.__srcHowl.once("playerror", howl_onError, handle);
-
-				setCurrentTime(time);
-
-				setGain(gain);
-
-				setPitch(pitch);
-
-				setPan(pan);
-			}
+			return;
 		}
+
+		final howl:Howl = buffer.__srcHowl;
+
+		if (handle >= 0)
+		{
+			final previousHowl = findHowlForHandle(handle);
+			final sound:Dynamic = previousHowl != null ? untyped previousHowl._soundById(handle) : null;
+
+			if (previousHowl == howl && sound != null && sound._ended != true)
+			{
+				if (howl.state() == "loaded" && !howl.playing(handle))
+				{
+					howl.play(handle);
+				}
+
+				return;
+			}
+
+			final stopPrevious:Bool = previousHowl != null && previousHowl != howl && sound != null && sound._ended != true;
+			releaseActiveHandle(stopPrevious);
+			time = 0;
+		}
+
+		if (howl.state() == "unloaded")
+		{
+			howl.load();
+		}
+
+		startPlayback(howl);
 	}
 
 	public function pause():Void
 	{
-		if (parent.buffer.__srcHowl != null && handle != -1)
+		final howl = getActiveHowl();
+		if (howl != null && hasSound(howl, handle))
 		{
-			parent.buffer.__srcHowl.pause(handle);
+			time = getCurrentTime();
+			howl.pause(handle);
+		}
+		else if (handle >= 0)
+		{
+			handle = -1;
 		}
 	}
 
 	public function stop():Void
 	{
-		if (parent.buffer.__srcHowl != null && handle != -1)
-		{
-			parent.buffer.__srcHowl.off("playerror", howl_onError, handle);
-			parent.buffer.__srcHowl.off("end", howl_onEnd, handle);
-			parent.buffer.__srcHowl.stop(handle);
-			handle = -1;
-		}
-
+		releaseActiveHandle(true);
 		time = 0;
 	}
 
-	// Event Handlers
-	private function howl_onEnd():Void
+	private function startPlayback(howl:Howl):Void
 	{
+		if (parent.buffer == null || parent.buffer.__srcHowl != howl || handle != -1)
+		{
+			return;
+		}
+
+		final newHandle:Int = parent.buffer.__srcHowlerDefaultSprite != null
+			? howl.play(parent.buffer.__srcHowlerDefaultSprite)
+			: howl.play();
+
+		if (newHandle < 0 || !hasSound(howl, newHandle))
+		{
+			return;
+		}
+
+		handle = newHandle;
+
+		howl.once("end", howl_onEnd, newHandle);
+		howl.once("playerror", howl_onError, newHandle);
+
+		setCurrentTime(time);
+		setGain(gain);
+		setPitch(pitch);
+		setPan(pan);
+	}
+
+	private function hasSound(howl:Howl, id:Int):Bool
+	{
+		if (id < 0)
+		{
+			return false;
+		}
+
+		final sound:Dynamic = untyped howl._soundById(id);
+		return sound != null;
+	}
+
+	private function findHowlForHandle(id:Int):Howl
+	{
+		if (id < 0)
+		{
+			return null;
+		}
+
+		final buffer = parent.buffer;
+		if (buffer != null && buffer.__srcHowl != null)
+		{
+			final currentHowl:Howl = buffer.__srcHowl;
+			if (hasSound(currentHowl, id))
+			{
+				return currentHowl;
+			}
+		}
+
+		#if lime_howlerjs
+		final howls:Array<Howl> = untyped Howler._howls;
+		if (howls != null)
+		{
+			for (howl in howls)
+			{
+				if (howl != null && hasSound(howl, id))
+				{
+					return howl;
+				}
+			}
+		}
+		#end
+
+		return null;
+	}
+
+	private function getActiveHowl():Howl
+	{
+		if (handle < 0)
+		{
+			return null;
+		}
+
+		final howl = findHowlForHandle(handle);
+		if (howl == null)
+		{
+			handle = -1;
+		}
+
+		return howl;
+	}
+
+	private function hasActiveSound():Bool
+	{
+		final howl = getActiveHowl();
+		return howl != null && howl.state() == "loaded" && hasSound(howl, handle);
+	}
+
+	private function releaseActiveHandle(stopSound:Bool):Void
+	{
+		final id = handle;
+		if (id >= 0)
+		{
+			final howl = findHowlForHandle(id);
+			if (howl != null)
+			{
+				howl.off("playerror", howl_onError, id);
+				howl.off("end", howl_onEnd, id);
+
+				if (stopSound && hasSound(howl, id))
+				{
+					howl.stop(id);
+				}
+			}
+		}
+
+		handle = -1;
+	}
+
+	private function howl_onEnd(id:Int):Void
+	{
+		if (handle != id)
+		{
+			return;
+		}
+
+		final howl = findHowlForHandle(id);
+		if (howl != null)
+		{
+			howl.off("playerror", howl_onError, id);
+			howl.off("end", howl_onEnd, id);
+		}
+
+		handle = -1;
+		time = 0;
+
 		if (loops > 0)
 		{
 			loops--;
-			stop();
 			play();
 			return;
 		}
 
-		time = 0;
-
-		final oldID:Int = handle;
-
 		parent.onComplete.dispatch();
-
-		if (handle == oldID)
-		{
-			handle = -1;
-		}
 	}
 
-	private function howl_onError(handle:Int, err:Dynamic):Void
+	private function howl_onError(id:Int, err:Dynamic):Void
 	{
-		if (this.handle == handle && !Std.isOfType(err, String))
+		if (handle != id)
 		{
-			this.handle = -1;
-			this.time = 0;
+			return;
 		}
+
+		releaseActiveHandle(false);
+		time = 0;
 	}
 
-	// Get & Set Methods
 	public function getLength():Float
 	{
-		if (parent.buffer.__srcHowl != null && handle != -1)
+		final howl = getActiveHowl();
+		if (howl == null || howl.state() != "loaded" || !hasSound(howl, handle))
 		{
-			if (parent.buffer.__srcHowlerDefaultSprite != null)
-			{
-				var sprite = untyped parent.buffer.__srcHowl._sprite[parent.buffer.__srcHowlerDefaultSprite];
-
-				if (sprite != null)
-				{
-					return sprite[1];
-				}
-			}
-
-			return parent.buffer.__srcHowl.duration(handle) * 1000.0;
+			return 0;
 		}
 
-		return 0;
+		return howl.duration(handle) * 1000.0;
 	}
 
 	public function getCurrentTime():Float
 	{
-		if (parent.buffer.__srcHowl != null && handle != -1)
+		final howl = getActiveHowl();
+		if (howl == null || howl.state() != "loaded" || !hasSound(howl, handle))
 		{
-			var seek = parent.buffer.__srcHowl.seek(handle) * 1000.0;
+			return time;
+		}
 
-			if (seek == 0)
-			{
-				var sound = untyped parent.buffer.__srcHowl._soundById(handle);
-
-				if (sound != null)
-				{
-					return sound._stop * 1000.0;
-				}
-			}
-
-			return seek;
+		final seek:Float = howl.seek(handle) * 1000.0;
+		if (seek == seek)
+		{
+			time = Math.max(0, seek);
 		}
 
 		return time;
@@ -165,57 +277,77 @@ class HTML5AudioSource
 
 	public function setCurrentTime(value:Float):Float
 	{
-		if (parent.buffer.__srcHowl != null && handle != -1)
+		if (value != value || value < 0)
 		{
-			parent.buffer.__srcHowl.seek(value / 1000.0, handle);
+			value = 0;
 		}
 
-		return time = value;
+		time = value;
+
+		final howl = getActiveHowl();
+		if (howl != null && hasSound(howl, handle))
+		{
+			howl.seek(value / 1000.0, handle);
+		}
+
+		return time;
 	}
 
 	public function getGain():Float
 	{
-		return (parent.buffer.__srcHowl != null && handle != -1) ? parent.buffer.__srcHowl.volume(handle) : gain;
+		final howl = getActiveHowl();
+		return howl != null && hasActiveSound() ? howl.volume(handle) : gain;
 	}
 
 	public function setGain(value:Float):Float
 	{
-		if (parent.buffer.__srcHowl != null && handle != -1)
+		gain = value;
+
+		final howl = getActiveHowl();
+		if (howl != null && hasSound(howl, handle))
 		{
-			parent.buffer.__srcHowl.volume(value, handle);
+			howl.volume(value, handle);
 		}
 
-		return gain = value;
+		return gain;
 	}
 
 	public function getPitch():Float
 	{
-		return (parent.buffer.__srcHowl != null && handle != -1) ? parent.buffer.__srcHowl.rate(handle) : pitch;
+		final howl = getActiveHowl();
+		return howl != null && hasActiveSound() ? howl.rate(handle) : pitch;
 	}
 
 	public function setPitch(value:Float):Float
 	{
-		if (parent.buffer.__srcHowl != null && handle != -1)
+		pitch = value;
+
+		final howl = getActiveHowl();
+		if (howl != null && hasSound(howl, handle))
 		{
-			parent.buffer.__srcHowl.rate(value, handle);
+			howl.rate(value, handle);
 		}
 
-		return pitch = value;
+		return pitch;
 	}
 
 	public function getPan():Float
 	{
-		return (parent.buffer.__srcHowl != null && handle != -1) ? untyped parent.buffer.__srcHowl.stereo(null, handle) : pan;
+		final howl = getActiveHowl();
+		return howl != null && hasActiveSound() ? untyped howl.stereo(null, handle) : pan;
 	}
 
 	public function setPan(value:Float):Float
 	{
-		if (parent.buffer.__srcHowl != null && handle != -1)
+		pan = value;
+
+		final howl = getActiveHowl();
+		if (howl != null && hasSound(howl, handle))
 		{
-			parent.buffer.__srcHowl.stereo(value, handle);
+			untyped howl.stereo(value, handle);
 		}
 
-		return pan = value;
+		return pan;
 	}
 
 	public function getLoops():Int
@@ -230,6 +362,7 @@ class HTML5AudioSource
 
 	public function getPlaying():Bool
 	{
-		return (parent.buffer.__srcHowl != null && handle != -1) ? parent.buffer.__srcHowl.playing(handle) : false;
+		final howl = getActiveHowl();
+		return howl != null && hasActiveSound() && howl.playing(handle);
 	}
 }
