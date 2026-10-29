@@ -47,6 +47,7 @@ class AssetHelper
 			"mid" => SOUND,
 			"midi" => SOUND,
 			"ogg" => SOUND,
+			"opus" => SOUND,
 			"spx" => SOUND,
 			"au" => SOUND,
 			"aiff" => SOUND,
