@@ -4,18 +4,21 @@ package lime._internal.backend.native;
 import cpp.Pointer;
 #end
 
+import haxe.Int64;
 import haxe.MainLoop;
 
 import lime.media.AudioManager;
 import lime.media.AudioSource;
 import lime.media.miniaudio.MAAudioBuffer;
 import lime.media.miniaudio.MAAudioBufferConfig;
+import lime.media.miniaudio.MAAudioRingBuffer;
 import lime.media.miniaudio.MASound;
 import lime.media.miniaudio.MASoundConfig;
 
 @:access(lime.media.AudioBuffer)
 class NativeAudioSource
 {
+	private var ringBuffers:Array<MAAudioRingBuffer> = [];
 	private var buffer:MAAudioBuffer;
 	private var handle:MASound;
 	private var loops:Int = 0;
@@ -40,6 +43,8 @@ class NativeAudioSource
 			buffer.uninit();
 			buffer = null;
 		}
+
+		ringBuffers = [];
 	}
 
 	public function init():Void
@@ -53,6 +58,7 @@ class NativeAudioSource
 				config.flags = MASound.FLAG_NO_SPATIALIZATION;
 				config.pDataSource = parent.buffer.__srcMADecoder;
 				config.pNotifications.onAtEnd = sound_atEnd;
+				config.pNotifications.onProcess = sound_onProcess;
 
 				handle = MASound.init(AudioManager.engine, config);
 			}
@@ -69,6 +75,7 @@ class NativeAudioSource
 				config.flags = MASound.FLAG_NO_SPATIALIZATION;
 				config.pDataSource = buffer;
 				config.pNotifications.onAtEnd = sound_atEnd;
+				config.pNotifications.onProcess = sound_onProcess;
 
 				handle = MASound.init(AudioManager.engine, config);
 			}
@@ -101,6 +108,22 @@ class NativeAudioSource
 		}
 	}
 
+	public function addRingBuffer(rb:MAAudioRingBuffer):Void
+	{
+		if (ringBuffers.contains(rb))
+			return;
+
+		ringBuffers.push(rb);
+	}
+
+	public function removeRingBuffer(rb:MAAudioRingBuffer):Void
+	{
+		if (!ringBuffers.contains(rb))
+			return;
+
+		ringBuffers.remove(rb);
+	}
+
 	// Event Handlers
 
 	private function sound_atEnd(_):Void
@@ -117,6 +140,19 @@ class NativeAudioSource
 		{
 			parent.onComplete.dispatch();
 		});
+	}
+
+	private function sound_onProcess(_, pFrames:lime.system.CFFIPointer, frameCount:Dynamic):Void
+	{
+		if (ringBuffers != null && ringBuffers.length > 0)
+		{
+			final frameCount:Int = Int64.toInt(Int64.make(frameCount.high, frameCount.low));
+
+			for (ringBuffer in ringBuffers)
+			{
+				ringBuffer.write_pcm_frames(pFrames, frameCount);
+			}
+		}
 	}
 
 	// Get & Set Methods
